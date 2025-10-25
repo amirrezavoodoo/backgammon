@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="fa">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>تخته‌نرد GG + VB</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div id="gameContainer" class="game-container">
+        <div id="board" class="board">
+            <!-- Bear‑off (black) on the left side -->
+            <div id="bearOffBlack" class="bear-off black" aria-label="Bear off black"></div>
+
+            <div class="board-section">
+                <div id="topRow" class="board-row"></div>
+                <div id="bottomRow" class="board-row"></div>
+            </div>
+
+            <div id="bar" class="bar"></div>
+
+            <div class="board-section">
+                <div id="topRow2" class="board-row"></div>
+                <div id="bottomRow2" class="board-row"></div>
+            </div>
+
+            <!-- Bear‑off (white) on the right side -->
+            <div id="bearOffWhite" class="bear-off white" aria-label="Bear off white"></div>
+        </div>
+
+            <!-- Dice UI (appears centered below the board after a roll) -->
+            <div id="diceContainer" class="dice-container" aria-live="polite">
+                <div id="diceLeft" class="dice-side"></div>
+                <div id="diceMiddle" class="dice-middle">
+                    <button id="rollButton" class="roll-button">🎲 ریختن تاس</button>
+                </div>
+                <div id="diceRight" class="dice-side"></div>
+                <!-- Canvas used by Dice3D (Three.js). Kept small and responsive. -->
+                <canvas id="dice3d" style="width:120px;height:120px;" aria-hidden="true"></canvas>
+            </div>
+
+            <!-- Undo button moved here so it can be absolutely positioned relative to #gameContainer -->
+            <button id="undoButton" class="undo-button">↩️ برگشت</button>
+
+        <div id="messages">
+            🤖 AI (سفید) شروع می‌کند...
+        </div>
+    </div>
+
+    <script src="js/ai.js"></script>
+    <script src="js/game.js"></script>
+    <script src="js/render.js"></script>
+    <script src="js/audio.js"></script>
+    <script src="js/main.js"></script>
+</body>
+</html>
