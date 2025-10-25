@@ -48,13 +48,20 @@ document.addEventListener('DOMContentLoaded', () => {
         const vw = Math.max(document.documentElement.clientWidth, window.innerWidth || 0);
         const vh = Math.max(document.documentElement.clientHeight, window.innerHeight || 0);
 
-        const widthAllowance = 12;
-        const heightAllowance = 24;
+        // Account for some UI chrome (controls/messages) so board fits vertically
+        const headerH = (document.querySelector('.hud') || { offsetHeight: 64 }).offsetHeight;
+        const footerAllowance = 24; // safe margin
 
-        const scaleX = (vw - widthAllowance) / rect.width;
-        const scaleY = (vh - heightAllowance) / rect.height;
+        const widthAllowance = 12; // small horizontal margin
+        const availableW = Math.max(100, vw - widthAllowance);
+        const availableH = Math.max(120, vh - headerH - footerAllowance);
 
-        const scale = Math.min(1, Math.max(0.6, Math.min(scaleX, scaleY)));
+        const scaleX = availableW / rect.width;
+        const scaleY = availableH / rect.height;
+
+        // allow a slightly smaller minimum scale on very small screens so the UI remains usable
+        const MIN_SCALE = 0.5;
+        const scale = Math.min(1, Math.max(MIN_SCALE, Math.min(scaleX, scaleY)));
         document.documentElement.style.setProperty('--ui-scale', String(scale));
     }
 

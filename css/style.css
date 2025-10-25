@@ -104,6 +104,15 @@ body {
   position: relative;
   max-width: 100vw;
 }
+/* Keep board from growing off-screen vertically on very narrow viewports.
+   Use an aspect-ratio and allow internal scrolling when necessary so the overall
+   page doesn't become extremely tall. */
+.board {
+  width: min(96vw, 1100px);
+  aspect-ratio: 1.8 / 1; /* wide board by default; allows height control */
+  max-height: calc(100vh - 160px);
+  overflow: auto;
+}
 
 /* Sections */
 .board-section {
@@ -249,7 +258,10 @@ body {
   .bar-and-bearoffs { grid-template-rows: auto auto auto; }
 }
 @media (max-width: 480px) {
-  .board { grid-template-columns: 1fr; }
+  /* On very small screens show a tall single-column board but cap height
+     and allow internal scroll; this prevents the whole page from becoming
+     extremely long and keeps controls accessible. */
+  .board { grid-template-columns: 1fr; max-height: calc(100vh - 140px); aspect-ratio: 0.9 / 1; }
   .bar-and-bearoffs { grid-template-columns: 1fr; grid-template-rows: auto auto auto; }
   .roll-button { padding: 12px 18px; font-size: 16px; }
 }
