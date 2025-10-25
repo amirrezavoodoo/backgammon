@@ -109,8 +109,9 @@ body {
    page doesn't become extremely tall. */
 .board {
   width: min(96vw, 1100px);
-  aspect-ratio: 1.8 / 1; /* wide board by default; allows height control */
-  max-height: calc(100vh - 160px);
+  aspect-ratio: 2 / 1; /* wide board by default; allows height control */
+  /* default cap; JS will fine-tune max-height based on available viewport */
+  max-height: calc(100vh - 120px);
   overflow: auto;
 }
 

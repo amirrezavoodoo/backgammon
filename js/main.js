@@ -57,12 +57,29 @@ document.addEventListener('DOMContentLoaded', () => {
         const availableH = Math.max(120, vh - headerH - footerAllowance);
 
         const scaleX = availableW / rect.width;
-        const scaleY = availableH / rect.height;
+        // We will apply vertical constraints by capping board height rather than forcing a vertical scale
+        // so triangles/points keep natural proportions. Compute a target max-height for the board and
+        // adjust CSS variables that control point height.
+        const targetBoardMaxH = Math.floor(availableH);
+        board.style.maxHeight = targetBoardMaxH + 'px';
 
-        // allow a slightly smaller minimum scale on very small screens so the UI remains usable
-        const MIN_SCALE = 0.5;
-        const scale = Math.min(1, Math.max(MIN_SCALE, Math.min(scaleX, scaleY)));
+        // Compute scale primarily from width to avoid vertical squash/stretch of point shapes
+        const MIN_SCALE = 0.48;
+        const scale = Math.min(1, Math.max(MIN_SCALE, scaleX));
         document.documentElement.style.setProperty('--ui-scale', String(scale));
+
+        // Adjust --point-h to fit two rows of points within the available board height.
+        try {
+            const rootStyles = getComputedStyle(document.documentElement);
+            const boardPaddingStr = rootStyles.getPropertyValue('--board-padding').trim() || '12px';
+            const boardPadding = parseFloat(boardPaddingStr);
+            // reserve some space for bar/bearoffs, padding and a small gutter
+            const reserved = boardPadding * 2 + 40; // extra gutter
+            const perRow = Math.max(100, Math.floor((targetBoardMaxH - reserved) / 2));
+            document.documentElement.style.setProperty('--point-h', perRow + 'px');
+        } catch (e) {
+            // ignore failures and keep CSS fallback
+        }
     }
 
     const fitDeferred = () => requestAnimationFrame(fitBoardToViewport);
