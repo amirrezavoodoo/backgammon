@@ -1,1047 +1,264 @@
-* {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
-}
+/* Reset and base */
+* { margin: 0; padding: 0; box-sizing: border-box; }
 
+html, body { height: 100%; }
 body {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    min-height: 100vh;
-    background: linear-gradient(135deg, #2f2f2f 0%, #5a4b3a 100%);
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    overflow: hidden;
-    padding: 0;
-    margin: 0;
-    width: 100%;
-    height: 100vh;
-    position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  background: linear-gradient(135deg, #2f2f2f 0%, #5a4b3a 100%);
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  -webkit-text-size-adjust: 100%;
+  overflow-x: hidden; /* prevent horizontal scroll */
+  overscroll-behavior-y: contain;
 }
 
-/* Portrait mobile optimization */
-@media (max-width: 768px) and (orientation: portrait) {
-    body {
-        padding: 0;
-        overflow: hidden;
-    }
+/* Fluid sizing variables */
+:root {
+  /* Core geometry */
+  --point-w: clamp(34px, 5vw, 50px);
+  --point-h: clamp(180px, 30vh, 280px);
+  --checker-size: clamp(28px, 4.5vw, 40px);
+  --stack-gap: clamp(2px, 0.6vw, 6px);
+  --stack-step: calc(var(--checker-size) + var(--stack-gap)); /* JS will read this */
+
+  /* Layout */
+  --board-gap: clamp(8px, 2vw, 20px);
+  --board-padding: clamp(10px, 2.6vw, 20px);
+  --ui-scale: 1; /* JS will adjust this to fit viewport */
+  --shell-max-w: 100vw;
+  --shell-max-h: 100vh;
+
+  /* Colors and effects */
+  --glass-bg: rgba(255,255,255,0.06);
+  --glass-border: rgba(255,255,255,0.12);
 }
 
-.game-container {
-    display: flex;
-    flex-direction: column;
-    gap: 15px;
-    position: relative;
-    --undo-left: 260px;
-    --undo-bottom: 140px;
-    width: auto;
-    height: auto;
-    justify-content: center;
-    align-items: center;
+/* App shell scales the whole UI to fit viewport */
+.app-shell {
+  width: 100%;
+  max-width: var(--shell-max-w);
+  height: 100%;
+  max-height: var(--shell-max-h);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: env(safe-area-inset-top) 8px env(safe-area-inset-bottom) 8px;
+  transform: scale(var(--ui-scale));
+  transform-origin: top center;
+  will-change: transform;
+}
+
+/* HUD */
+.hud {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 12px;
+}
+
+.messages { min-height: 36px; }
+
+.controls {
+  display: inline-flex;
+  gap: 12px;
+}
+
+.roll-button, .undo-button {
+  padding: 12px 22px;
+  border: none;
+  border-radius: 12px;
+  background: #2f7d32;
+  color: #fff;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 160ms ease, box-shadow 160ms ease, opacity 120ms ease;
+}
+.undo-button { background: #6b4c3b; }
+.roll-button:disabled, .undo-button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.roll-button:hover:not(:disabled), .undo-button:hover:not(:disabled) {
+  transform: translateY(-3px);
+  box-shadow: 0 12px 30px rgba(0,0,0,0.25);
+}
+
+/* Board wrapper/area */
+.board-wrapper {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
 }
 
 .board {
-    background: linear-gradient(180deg, rgba(0,0,0,0.06), rgba(0,0,0,0.02)),
-                repeating-linear-gradient(90deg, rgba(255,255,255,0.02) 0 2px, transparent 2px 20px),
-                linear-gradient(135deg, #e6c89a, #6b4b36);
-    padding: 20px;
-    border-radius: 15px;
-    box-shadow: 0 10px 40px rgba(0,0,0,0.5);
-    display: flex;
-    gap: 20px;
-    position: relative;
+  background: #d8c3aa;
+  padding: var(--board-padding);
+  border-radius: 15px;
+  box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+  display: grid;
+  grid-template-columns: auto auto auto; /* left | bar/bearoffs | right */
+  gap: var(--board-gap);
+  position: relative;
+  max-width: 100vw;
 }
 
-/* Portrait mode - rotate board 90 degrees and optimize */
-@media (max-width: 768px) and (orientation: portrait) {
-    .board {
-        padding: 6px;
-        gap: 5px;
-        border-radius: 12px;
-    }
-}
-
+/* Sections */
 .board-section {
-    display: flex;
-    flex-direction: column;
-    gap: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 .board-row {
-    display: flex;
-    gap: 0;
+  display: flex;
 }
 
+/* Points */
 .point {
-    width: 50px;
-    height: 280px;
-    position: relative;
-    cursor: pointer;
-    transition: all 0.3s ease;
+  width: var(--point-w);
+  height: var(--point-h);
+  position: relative;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
 .point::before {
-    content: '';
-    position: absolute;
-    width: 100%;
-    height: 100%;
+  content: '';
+  position: absolute;
+  width: 100%; height: 100%;
 }
 
-.point.top::before {
-    clip-path: polygon(50% 100%, 0% 0%, 100% 0%);
-}
+.point.top::before { clip-path: polygon(50% 100%, 0% 0%, 100% 0%); }
+.point.bottom::before { clip-path: polygon(50% 0%, 0% 100%, 100% 100%); }
 
-.point.bottom::before {
-    clip-path: polygon(50% 0%, 0% 100%, 100% 100%);
-}
+.point:nth-child(odd)::before { background: #6b4c3b; }
+.point:nth-child(even)::before { background: #d9b382; }
 
-.point:nth-child(odd)::before {
-    background: #6b4c3b;
-}
+.point.possible { animation: pulse 1s infinite; }
+.point.selected-highlight { box-shadow: inset 0 0 20px rgba(255, 215, 0, 0.5); }
 
-.point:nth-child(even)::before {
-    background: #d9b382;
-}
-
-.point.possible {
-    animation: pulse 1s infinite;
-}
-
-.point.selected-highlight {
-    box-shadow: inset 0 0 20px rgba(255, 215, 0, 0.5);
-}
-
-@keyframes pulse {
-    0%, 100% {
-        box-shadow: 0 0 0 0 rgba(76, 175, 80, 0.7);
-        transform: scale(1);
-    }
-    50% {
-        box-shadow: 0 0 0 10px rgba(76, 175, 80, 0);
-        transform: scale(1.05);
-    }
-}
-
-@keyframes bearOffPulse {
-    0%, 100% {
-        box-shadow: 0 0 0 0 rgba(255, 215, 0, 0.9);
-    }
-    50% {
-        box-shadow: 0 0 0 15px rgba(255, 215, 0, 0);
-    }
-}
-
+/* Checkers */
 .checker {
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-    position: absolute;
-    left: 50%;
-    transform: translateX(-50%);
-    border: 3px solid rgba(0,0,0,0.3);
-    cursor: pointer;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-    z-index: 1;
-    transition: box-shadow 0.3s ease;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 14px;
-    font-weight: bold;
+  width: var(--checker-size);
+  height: var(--checker-size);
+  border-radius: 50%;
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 3px solid rgba(0,0,0,0.3);
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+  z-index: 1;
+  transition: box-shadow 0.3s ease, top 0.3s ease, bottom 0.3s ease;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px; font-weight: bold;
 }
-
-.checker.animating {
-    z-index: 1000;
-    transition: all 0.8s cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-
-.checker:not(.animating) {
-    transition: top 0.3s ease, bottom 0.3s ease, box-shadow 0.3s ease;
-}
-
-.checker:hover {
-    transform: translateX(-50%) scale(1.1);
-    box-shadow: 0 4px 12px rgba(0,0,0,0.5);
-    z-index: 10;
-}
-
 .checker.white {
-    background: radial-gradient(circle at 30% 30%, #fff, #e0e0e0);
-    color: #333;
+  background: radial-gradient(circle at 30% 30%, #fff, #e0e0e0);
+  color: #333;
 }
-
 .checker.black {
-    background: radial-gradient(circle at 30% 30%, #4a4a4a, #1a1a1a);
-    color: white;
+  background: radial-gradient(circle at 30% 30%, #4a4a4a, #1a1a1a);
+  color: white;
 }
-
+.checker:hover {
+  transform: translateX(-50%) scale(1.06);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+  z-index: 10;
+}
 .checker.selected {
-    box-shadow: 0 0 0 4px gold, 0 4px 12px rgba(0,0,0,0.5);
-    z-index: 100;
-    animation: selectedPulse 1s infinite;
+  box-shadow: 0 0 0 4px gold, 0 4px 12px rgba(0,0,0,0.5);
+  z-index: 100;
+  animation: selectedPulse 1s infinite;
+}
+.checker.animating {
+  z-index: 1000;
+  transition: transform 0.8s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
+/* Bar and bear-offs */
+.bar-and-bearoffs {
+  display: grid;
+  grid-template-rows: 1fr auto auto;
+  align-items: center;
+  justify-items: center;
+  gap: calc(var(--board-gap) / 2);
+  min-width: calc(var(--point-w) + 8px);
+}
+.bar, .bear-off {
+  width: calc(var(--point-w) + 6px);
+  min-height: calc(var(--checker-size) * 3);
+  background: var(--glass-bg);
+  border: 1px solid rgba(255,255,255,0.06);
+  backdrop-filter: blur(4px);
+  border-radius: 10px;
+}
+.bear-off.possible {
+  box-shadow: 0 0 18px 6px rgba(76,175,80,0.12), inset 0 0 12px rgba(76,175,80,0.04);
+}
+
+/* Dice canvas positioning */
+.dice-container {
+  position: absolute;
+  left: 8px;
+  top: 8px;
+  transform: scale(0.9);
+  transform-origin: left top;
+  pointer-events: none;
+}
+#dice3d { display: block; }
+
+/* Messages glass look */
+.message {
+  background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.03));
+  border: 1px solid var(--glass-border);
+  backdrop-filter: blur(6px) saturate(1.08);
+  -webkit-backdrop-filter: blur(6px) saturate(1.08);
+  padding: 12px 16px;
+  border-radius: 12px;
+  color: #fff;
+  display: inline-flex;
+  gap: 10px; align-items: center;
+}
+@keyframes msgIn { 0% { transform: translateY(-8px); opacity: 0; } 100% { transform: translateY(0); opacity: 1; } }
+.message.enter { animation: msgIn 360ms cubic-bezier(.22,1,.36,1) forwards; }
+
+/* Animations reused */
+@keyframes pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(76, 175, 80, 0.7); transform: scale(1); }
+  50% { box-shadow: 0 0 0 10px rgba(76, 175, 80, 0); transform: scale(1.05); }
+}
 @keyframes selectedPulse {
-    0%, 100% { transform: translateX(-50%) scale(1); }
-    50% { transform: translateX(-50%) scale(1.15); }
+  0%, 100% { transform: translateX(-50%) scale(1); }
+  50% { transform: translateX(-50%) scale(1.15); }
 }
-
-.bar {
-    width: 60px;
-    background: #654321;
-    border-radius: 10px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 5px;
-    padding: 10px;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    position: relative;
-}
-
-.bar:hover {
-    background: #7a5a2e;
-}
-
-.bar.selected {
-    box-shadow: 0 0 0 4px gold;
-    animation: selectedPulse 1s infinite;
-}
-
-.bar.has-checkers-possible {
-    animation: pulse 1s infinite;
-}
-
-
-.bear-off {
-    width: 54px; /* narrow column */
-    background: rgba(0,0,0,0.18);
-    border-radius: 10px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    padding: 6px;
-    gap: 6px;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    position: relative;
-}
-
-/* Place bear-off containers vertically centered relative to board */
-
-#bearOffWhite, #bearOffBlack {
-    height: 340px; /* tall column beside the board */
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    padding: 6px;
-}
-
-/* Differentiate left/right placement visually (left = black, right = white) */
-#bearOffBlack { order: 0; }
-#bearOffWhite { order: 4; }
-
-/* Label at top of each narrow column */
-.bear-off .label {
-    font-weight: bold;
-    color: rgba(255,255,255,0.95);
-    font-size: 13px;
-    text-align: center;
-    width: 100%;
-    margin-bottom: 6px;
-}
-
-/* Container inside bear-off which stacks checkers vertically and can scroll */
-.bear-off .stack {
-    width: 100%;
-    height: calc(100% - 34px); /* leave room for label */
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 6px;
-    overflow-y: auto;
-}
-
-/* Black stacks from top down, white stacks from bottom up */
-.bear-off.black .stack { justify-content: flex-start; }
-.bear-off.white .stack { justify-content: flex-end; }
-
-.bear-off .stack .checker {
-    position: relative;
-    left: 0;
-    transform: none;
-    margin: 0;
-    width: 36px;
-    height: 36px;
-}
-
-.bear-off .count-badge {
-    font-weight: bold;
-    color: rgba(255,255,255,0.95);
-    background: rgba(0,0,0,0.4);
-    padding: 4px 6px;
-    border-radius: 12px;
-    margin-top: 6px;
-    font-size: 12px;
-}
-
-.bear-off.possible {
-    background: rgba(255, 215, 0, 0.3);
-    box-shadow: 0 0 20px rgba(255, 215, 0, 0.6);
-    animation: bearOffPulse 1s infinite;
-}
-
-/* When bear-off is a legal destination, use a green highlight similar to .point.possible */
-.bear-off.possible {
-    animation: pulse 1s infinite;
-    box-shadow: 0 0 18px 4px rgba(76,175,80,0.25), inset 0 0 12px rgba(76,175,80,0.08);
-}
-
-.dice-container {
-    display: flex;
-    gap: 20px;
-    align-items: center;
-    justify-content: center;
-    flex-wrap: wrap;
-}
-
-/* Nudge the whole dice + roll-button group slightly to the right
-   so it lines up with the board center (not the page center).
-   Adjust --dice-shift-x experimentally (positive moves right). */
-:root {
-    --dice-shift-x: 0px;
-    --dice-shift-y: 0px;
-}
-
-.dice-container {
-    transform: translate(var(--dice-shift-x), var(--dice-shift-y));
-    transition: transform 0.3s ease;
-}
-
-/* Desktop - keep centered below board */
-@media (min-width: 769px) {
-    :root {
-        --dice-shift-x: 75px;
-        --dice-shift-y: -30px;
-    }
-}
-
-.dice-side {
-    width: 80px;
-    height: 80px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.dice-middle {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.dice {
-    width: 60px;
-    height: 60px;
-}
-
-#dice3d {
-    width: 120px;
-    height: 120px;
-    pointer-events: none;
-    display: block;
-}
-
-.dice {
-    width: 60px;
-    height: 60px;
-    background: white;
-    border-radius: 10px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 32px;
-    font-weight: bold;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.3);
-    position: relative;
-    transition: all 0.3s ease;
-}
-
-.dice.used {
-    opacity: 0.3;
-    background: #ccc;
-}
-
-.dice.must-use-first {
-    box-shadow: 0 0 0 3px #e74c3c, 0 4px 15px rgba(0,0,0,0.3);
-    animation: mustUsePulse 1s infinite;
-}
-
-@keyframes mustUsePulse {
-    0%, 100% { box-shadow: 0 0 0 3px #e74c3c, 0 4px 15px rgba(0,0,0,0.3); }
-    50% { box-shadow: 0 0 0 6px #e74c3c, 0 4px 15px rgba(0,0,0,0.3); }
-}
-
-.dice::after {
-    content: attr(data-id);
-    position: absolute;
-    top: -8px;
-    right: -8px;
-    width: 20px;
-    height: 20px;
-    background: #3498db;
-    color: white;
-    border-radius: 50%;
-    font-size: 12px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-weight: bold;
-}
-
-.dice.used::after {
-    background: #95a5a6;
-}
-
-.roll-button {
-    padding: 15px 40px;
-    font-size: 18px;
-    font-weight: bold;
-    background: linear-gradient(135deg, #f39c12 0%, #e67e22 100%);
-    color: white;
-    border: none;
-    border-radius: 10px;
-    cursor: pointer;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.3);
-    transition: all 0.3s ease;
-}
-
-.roll-button:hover:not(:disabled) {
-    transform: translateY(-2px);
-    box-shadow: 0 6px 20px rgba(0,0,0,0.4);
-}
-
-.roll-button:active {
-    transform: translateY(0);
-}
-
-.roll-button:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-}
-
-/* Visual feedback when rolling dice */
-.roll-button.rolling {
-    animation: rollGlow 0.9s ease-in-out;
-    transform: translateY(-4px) scale(1.03);
-    box-shadow: 0 10px 30px rgba(243,156,18,0.45), 0 2px 8px rgba(0,0,0,0.25);
-}
-
-@keyframes rollGlow {
-    0% { box-shadow: 0 4px 15px rgba(0,0,0,0.3); transform: translateY(0) scale(1); }
-    30% { transform: translateY(-6px) scale(1.06); box-shadow: 0 16px 40px rgba(243,156,18,0.55); }
-    60% { transform: translateY(-3px) scale(1.02); box-shadow: 0 10px 26px rgba(243,156,18,0.48); }
-    100% { transform: translateY(0) scale(1); box-shadow: 0 4px 15px rgba(0,0,0,0.3); }
-}
-
-.message {
-    text-align: center;
-    color: white;
-    font-size: 20px;
-    font-weight: bold;
-    padding: 15px;
-    background: rgba(0,0,0,0.3);
-    border-radius: 10px;
-    min-height: 60px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: all 0.3s ease;
-}
-
-/* Move the messages box up slightly (5cm) for better visual placement */
-#messages {
-    transform: translateY(-2cm);
-}
-
-.message.warning {
-    background: rgba(231, 76, 60, 0.3);
-    border: 2px solid #e74c3c;
-}
-
-.message.success {
-    background: rgba(46, 204, 113, 0.3);
-    border: 2px solid #2ecc71;
-}
-
-.message.info {
-    background: rgba(52, 152, 219, 0.3);
-    border: 2px solid #3498db;
-}
-
-@keyframes shake {
-    0% { transform: translateX(0) rotate(0); }
-    20% { transform: translateX(-6px) rotate(-2deg); }
-    40% { transform: translateX(6px) rotate(2deg); }
-    60% { transform: translateX(-4px) rotate(-1deg); }
-    80% { transform: translateX(4px) rotate(1deg); }
-    100% { transform: translateX(0) rotate(0); }
-}
-
-.shaking {
-    animation: shake 0.65s ease-in-out;
-}
-
-.controls {
-    display: flex;
-    gap: 10px;
-    align-items: center;
-    flex-wrap: wrap;
-}
-
-.undo-button {
-    padding: 10px 16px;
-    font-size: 15px;
-    background: linear-gradient(135deg, #2ecc71 0%, #27ae60 100%); /* green accent */
-    color: white;
-    border: none;
-    border-radius: 8px;
-    cursor: pointer;
-    transition: all 0.18s ease;
-    box-shadow: 0 4px 12px rgba(39,174,96,0.25);
-    /* absolute placement so it can sit where the user marked (adjust vars on .game-container) */
-    position: absolute;
-    left: calc(var(--undo-left) - 4cm);
-    bottom: var(--undo-bottom);
-    z-index: 40;
-}
-
-.undo-button:hover:not(:disabled) {
-    transform: translateY(-2px);
-    box-shadow: 0 8px 20px rgba(39,174,96,0.3);
-}
-
-.undo-button:disabled {
-    opacity: 0.3;
-    cursor: not-allowed;
-}
-
-/* Visual feedback for undo action */
-.undo-button.undoing {
-    animation: undoPulse 0.8s ease-in-out;
-    transform: translateY(-3px) scale(1.02);
-    box-shadow: 0 8px 22px rgba(149,165,166,0.35);
-}
-
-@keyframes undoPulse {
-    0% { transform: translateY(0) scale(1); }
-    30% { transform: translateY(-6px) scale(1.06); }
-    60% { transform: translateY(-2px) scale(1.03); }
-    100% { transform: translateY(0) scale(1); }
-}
-
-/* --- Visual polish variables --- */
-:root {
-    --board-bg-wood-1: #6b4b36;
-    --board-bg-wood-2: #c9a77a;
-    --point-dark: #6b4c3b;
-    --point-light: #d9b382;
-    --checker-shadow: rgba(16, 16, 16, 0.45);
-    --glow-white: rgba(255, 245, 200, 0.9);
-    --glow-black: rgba(120, 180, 255, 0.9);
-    --glass-bg: rgba(255,255,255,0.06);
-    --glass-border: rgba(255,255,255,0.12);
-}
-
-/* Wood-like board background using subtle gradients and pattern */
-.board {
-    background: linear-gradient(180deg, rgba(0,0,0,0.06), rgba(0,0,0,0.02)),
-                repeating-linear-gradient(90deg, rgba(255,255,255,0.02) 0 2px, transparent 2px 20px),
-                linear-gradient(135deg, var(--board-bg-wood-2), var(--board-bg-wood-1));
-}
-
-/* Softer point colors with gradient for depth */
-.point:nth-child(odd)::before {
-    background: linear-gradient(180deg, #6b4c3b 0%, #5a3927 100%);
-}
-
-.point:nth-child(even)::before {
-    background: linear-gradient(180deg, #e6c89a 0%, #d3aa77 100%);
-}
-
-/* Checkers: subtle depth and inner shadow */
-.checker {
-    transition: transform 180ms ease, box-shadow 180ms ease, top 180ms ease, bottom 180ms ease;
-    box-shadow: 0 6px 16px var(--checker-shadow), inset 0 -6px 14px rgba(0,0,0,0.18);
-}
-
-.checker::after {
-    content: '';
-    position: absolute;
-    inset: 2px;
-    border-radius: 50%;
-    pointer-events: none;
-    box-shadow: inset 0 10px 18px rgba(255,255,255,0.06);
-}
-
-/* Selected glow */
-.checker.selected {
-    box-shadow: 0 10px 32px rgba(255,215,0,0.14), 0 6px 20px rgba(0,0,0,0.35) !important;
-    transform: translateX(-50%) scale(1.08);
-}
-
-/* Landing animation when placing a checker */
-@keyframes landing {
-    0% { transform: translateX(-50%) scale(0.92); opacity: 0.0; }
-    60% { transform: translateX(-50%) scale(1.03); opacity: 1; }
-    100% { transform: translateX(-50%) scale(1); }
-}
-.checker.landing {
-    animation: landing 150ms ease forwards;
-}
-
-/* Dice visuals: softer material */
-.dice {
-    background: linear-gradient(145deg, #ffffff 0%, #f0f0f0 100%);
-    box-shadow: 0 8px 20px rgba(0,0,0,0.18), inset 0 -4px 10px rgba(0,0,0,0.04);
-}
-
-/* Glassmorphism for messages */
-.message {
-    background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.03));
-    border: 1px solid var(--glass-border);
-    backdrop-filter: blur(6px) saturate(1.08);
-    -webkit-backdrop-filter: blur(6px) saturate(1.08);
-    padding: 14px 18px;
-    border-radius: 12px;
-    color: #fff;
-    display: inline-flex;
-    gap: 10px;
-    align-items: center;
-}
-
-/* Message entrance (fade + slide down) */
-@keyframes msgIn {
-    0% { transform: translateY(-8px); opacity: 0; }
-    100% { transform: translateY(0); opacity: 1; }
-}
-.message.enter {
-    animation: msgIn 360ms cubic-bezier(.22,1,.36,1) forwards;
-}
-
-/* Buttons modernized */
-.roll-button, .undo-button {
-    border-radius: 12px;
-    transition: transform 160ms ease, box-shadow 160ms ease, opacity 120ms ease;
-}
-.roll-button:hover:not(:disabled), .undo-button:hover:not(:disabled) {
-    transform: translateY(-4px);
-    box-shadow: 0 12px 30px rgba(0,0,0,0.25);
-}
-
-/* Bear-off and bar glass look */
-.bear-off, .bar {
-    background: var(--glass-bg);
-    border: 1px solid rgba(255,255,255,0.06);
-    backdrop-filter: blur(4px);
-}
-
-/* Current player highlight on board */
-.board.current-player-white { box-shadow: 0 0 30px rgba(80,160,255,0.06) inset; }
-.board.current-player-black { box-shadow: 0 0 30px rgba(255,215,0,0.06) inset; }
-
-/* Make bear-off possible use a green tone while keeping glassy look */
-.bear-off.possible {
-    box-shadow: 0 0 18px 6px rgba(76,175,80,0.12), inset 0 0 12px rgba(76,175,80,0.04);
-}
-
-/* Responsive tweaks for mobile */
-@media (max-width: 900px) {
-    .game-container {
-        gap: 8px;
-    }
-    
-    .board {
-        padding: 10px;
-        gap: 10px;
-    }
-    
-    .point { 
-        width: 36px; 
-        height: 210px; 
-    }
-    
-    .checker { 
-        width: 31px; 
-        height: 31px; 
-        font-size: 12px;
-    }
-    
-    .bear-off {
-        width: 46px;
-    }
-    
-    #bearOffWhite, #bearOffBlack {
-        height: 290px;
-    }
-    
-    .bar {
-        width: 50px;
-    }
-    
-    .dice-container { 
-        transform: scale(0.85);
-        gap: 10px;
-    }
-    
-    #messages {
-        font-size: 15px;
-        padding: 10px;
-    }
-    
-    .roll-button { 
-        padding: 12px 28px; 
-        font-size: 16px; 
-    }
+@keyframes bearOffPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(255, 215, 0, 0.9); }
+  50% { box-shadow: 0 0 0 15px rgba(255, 215, 0, 0); }
 }
 
+/* Responsive rules */
+/* تا 768px برد را دو ستونی نگه می‌داریم؛ فقط زیر 480px ستونی می‌شود */
 @media (max-width: 768px) {
-    :root {
-        --dice-shift-x: 0px;
-        --dice-shift-y: 0px;
-    }
-    
-    .game-container {
-        gap: 8px;
-    }
-    
-    .board {
-        padding: 8px;
-        gap: 8px;
-    }
-    
-    .point { 
-        width: 30px; 
-        height: 180px; 
-    }
-    
-    .checker { 
-        width: 26px; 
-        height: 26px; 
-        font-size: 11px;
-        border: 2px solid rgba(0,0,0,0.3);
-    }
-    
-    .bear-off {
-        width: 40px;
-    }
-    
-    #bearOffWhite, #bearOffBlack {
-        height: 250px;
-        padding: 4px;
-    }
-    
-    .bear-off .stack .checker {
-        width: 30px;
-        height: 30px;
-    }
-    
-    .bar {
-        width: 40px;
-        padding: 6px;
-    }
-    
-    .dice-container { 
-        transform: scale(0.7); 
-        gap: 8px;
-    }
-    
-    .roll-button { 
-        padding: 10px 20px; 
-        font-size: 14px; 
-    }
-    
-    #messages {
-        font-size: 14px;
-        padding: 8px;
-    }
+  .dice-container { transform: scale(0.75); }
 }
-
-/* Portrait orientation specific adjustments */
-@media (max-width: 768px) and (orientation: portrait) {
-    body {
-        overflow: hidden;
-        display: flex;
-        justify-content: center;
-        align-items: center;
-    }
-    
-    .game-container {
-        height: 100vh;
-        width: 100vw;
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        gap: 0;
-        position: relative;
-    }
-    
-    .board {
-        transform: rotate(90deg);
-        transform-origin: center center;
-        width: 85vh !important;
-        height: auto;
-        position: absolute;
-        top: 50%;
-        left: 50%;
-        margin-top: -42.5vw;
-        margin-left: -42.5vh;
-    }
-    
-    .point { 
-        width: 32px; 
-        height: 190px; 
-    }
-    
-    .checker { 
-        width: 28px; 
-        height: 28px; 
-        font-size: 11px;
-    }
-    
-    .bear-off {
-        width: 42px;
-    }
-    
-    #bearOffWhite, #bearOffBlack {
-        height: 270px;
-    }
-    
-    .bar {
-        width: 42px;
-    }
-    
-    .dice-container {
-        transform: rotate(-90deg) scale(0.85);
-        position: fixed !important;
-        bottom: 20px !important;
-        left: 50% !important;
-        margin-left: -75px !important;
-        z-index: 200;
-        background: rgba(0,0,0,0.4);
-        padding: 10px 15px;
-        border-radius: 15px;
-        backdrop-filter: blur(10px);
-    }
-    
-    #messages {
-        transform: rotate(-90deg);
-        position: fixed !important;
-        top: 50px !important;
-        left: 50% !important;
-        margin-left: -150px !important;
-        width: 300px;
-        font-size: 15px;
-        z-index: 200;
-        background: rgba(0,0,0,0.5);
-        backdrop-filter: blur(10px);
-        border-radius: 12px;
-        padding: 12px;
-    }
+@media (max-width: 560px) {
+  .board { grid-template-columns: auto auto; }
+  .bar-and-bearoffs { grid-template-rows: auto auto auto; }
 }
-
 @media (max-width: 480px) {
-    body {
-        padding: 3px;
-        align-items: flex-start;
-        padding-top: 10px;
-    }
-    
-    .game-container {
-        gap: 5px;
-    }
-    
-    .board {
-        padding: 6px;
-        gap: 5px;
-        border-radius: 10px;
-    }
-    
-    .point { 
-        width: 24px; 
-        height: 140px; 
-    }
-    
-    .checker { 
-        width: 22px; 
-        height: 22px; 
-        font-size: 9px;
-        border: 2px solid rgba(0,0,0,0.3);
-    }
-    
-    .bear-off {
-        width: 32px;
-        padding: 3px;
-        gap: 3px;
-    }
-    
-    #bearOffWhite, #bearOffBlack {
-        height: 200px;
-        padding: 3px;
-    }
-    
-    .bear-off .stack .checker {
-        width: 24px;
-        height: 24px;
-    }
-    
-    .bear-off .label {
-        font-size: 10px;
-        margin-bottom: 3px;
-    }
-    
-    .bear-off .count-badge {
-        font-size: 10px;
-        padding: 2px 4px;
-        margin-top: 3px;
-    }
-    
-    .bar {
-        width: 30px;
-        padding: 4px;
-        gap: 3px;
-    }
-    
-    .dice-container { 
-        transform: scale(0.6); 
-        gap: 5px;
-    }
-    
-    .dice-side {
-        width: 60px;
-        height: 60px;
-    }
-    
-    .dice {
-        width: 50px;
-        height: 50px;
-        font-size: 24px;
-    }
-    
-    #dice3d {
-        width: 90px;
-        height: 90px;
-    }
-    
-    .roll-button { 
-        padding: 8px 16px; 
-        font-size: 13px; 
-        border-radius: 8px;
-    }
-    
-    #messages {
-        font-size: 13px;
-        padding: 6px;
-        min-height: 40px;
-        transform: translateY(-0.5cm);
-    }
-    
-    .message {
-        padding: 8px 12px;
-        border-radius: 8px;
-    }
+  .board { grid-template-columns: 1fr; }
+  .bar-and-bearoffs { grid-template-columns: 1fr; grid-template-rows: auto auto auto; }
+  .roll-button { padding: 12px 18px; font-size: 16px; }
 }
 
-/* Small portrait phones - optimized layout */
-@media (max-width: 480px) and (orientation: portrait) {
-    body {
-        overflow: hidden;
-    }
-    
-    .game-container {
-        overflow: hidden;
-    }
-    
-    .board {
-        transform: rotate(90deg);
-        width: 82vh !important;
-        padding: 5px;
-        gap: 4px;
-        border-radius: 10px;
-        margin-top: -41vw;
-        margin-left: -41vh;
-    }
-    
-    .point { 
-        width: 26px; 
-        height: 150px; 
-    }
-    
-    .checker { 
-        width: 23px; 
-        height: 23px; 
-        font-size: 9px;
-    }
-    
-    .bear-off {
-        width: 34px;
-        padding: 3px;
-    }
-    
-    #bearOffWhite, #bearOffBlack {
-        height: 220px;
-        padding: 3px;
-    }
-    
-    .bear-off .stack .checker {
-        width: 24px;
-        height: 24px;
-    }
-    
-    .bar {
-        width: 32px;
-        padding: 3px;
-    }
-    
-    .dice-container {
-        transform: rotate(-90deg) scale(0.75) !important;
-        bottom: 15px !important;
-        margin-left: -65px !important;
-        padding: 8px 12px;
-    }
-    
-    .roll-button {
-        padding: 10px 20px;
-        font-size: 14px;
-    }
-    
-    #messages {
-        top: 40px !important;
-        margin-left: -120px !important;
-        width: 240px;
-        font-size: 13px;
-        padding: 8px 10px;
-    }
-    
-    .dice {
-        width: 50px;
-        height: 50px;
-        font-size: 26px;
-    }
-    
-    #dice3d {
-        width: 100px;
-        height: 100px;
-    }
+/* Accessibility: reduce motion */
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
 }
 
-/* Hide undo button on user request (keeps element in DOM to avoid JS errors) */
-#undoButton, .undo-button {
-    display: none !important;
-}
-
-/* Messages are visible so in-game notifications (rolls, winner, info) appear.
-   The `.message` styles above control appearance. */
+/* اگر لازم بود Undo مخفی شود، این را فعال کنید:
+#undoButton, .undo-button { display: none !important; }
+*/

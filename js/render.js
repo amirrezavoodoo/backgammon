@@ -1,11 +1,43 @@
 class BackgammonUI {
     constructor(game) {
         this.game = game;
-    this.ai = new BackgammonGrandmasterAI(game, 'grandmaster'); // AI set to max difficulty
+        this.ai = new BackgammonGrandmasterAI(game, 'grandmaster'); // AI set to max difficulty
         this.setupBoard();
         this.attachEventListeners();
         this.render();
         setTimeout(() => this.startGame(), 1000);
+    }
+
+    // cache for stack-step (reads from CSS --stack-step)
+    _stackStepCache = null;
+
+    getStackStep() {
+        try {
+            if (this._stackStepCache) return this._stackStepCache;
+            const rootStyles = getComputedStyle(document.documentElement);
+            const val = rootStyles.getPropertyValue('--stack-step').trim();
+            const px = parseFloat(val);
+            this._stackStepCache = Number.isFinite(px) && px > 0 ? px : 42;
+            return this._stackStepCache;
+        } catch {
+            return 42;
+        }
+    }
+
+    invalidateStackStepCache() {
+        this._stackStepCache = null;
+    }
+
+    placeCheckerElement(checkerEl, stackIndex, isTopSide) {
+        const step = this.getStackStep();
+        const offset = Math.max(2, Math.round(step * 0.05));
+        if (isTopSide) {
+            checkerEl.style.top = `${stackIndex * step + offset}px`;
+            checkerEl.style.bottom = '';
+        } else {
+            checkerEl.style.bottom = `${stackIndex * step + offset}px`;
+            checkerEl.style.top = '';
+        }
     }
 
     startGame() {
@@ -68,10 +100,70 @@ class BackgammonUI {
     }
 
     setupBoard() {
-        const topRow = document.getElementById('topRow');
-        const bottomRow = document.getElementById('bottomRow');
-        const topRow2 = document.getElementById('topRow2');
-        const bottomRow2 = document.getElementById('bottomRow2');
+        // Ensure board and expected containers exist. Some DOM builds (mobile/custom skins)
+        // might not include the exact IDs; create fallbacks so setup doesn't throw.
+        const board = document.getElementById('board');
+        if (!board) {
+            console.warn('setupBoard: #board not found — skipping board setup');
+            return;
+        }
+
+        // left and right sections
+        let leftSection = board.querySelector('.board-section.left');
+        let rightSection = board.querySelector('.board-section.right');
+        if (!leftSection) {
+            leftSection = document.createElement('div');
+            leftSection.className = 'board-section left';
+            board.insertAdjacentElement('afterbegin', leftSection);
+        }
+        if (!rightSection) {
+            rightSection = document.createElement('div');
+            rightSection.className = 'board-section right';
+            board.appendChild(rightSection);
+        }
+
+        // helper to get or create a row inside a section
+        const ensureRow = (sectionEl, id, extraClass) => {
+            let row = sectionEl.querySelector(`#${id}`) || document.getElementById(id);
+            if (!row) {
+                row = document.createElement('div');
+                row.id = id;
+                row.className = `board-row ${extraClass || ''}`.trim();
+                sectionEl.appendChild(row);
+            }
+            return row;
+        };
+
+        const topRow = ensureRow(leftSection, 'topRow', 'top');
+        const bottomRow = ensureRow(leftSection, 'bottomRow', 'bottom');
+        const topRow2 = ensureRow(rightSection, 'topRow2', 'top');
+        const bottomRow2 = ensureRow(rightSection, 'bottomRow2', 'bottom');
+
+        // ensure bar and bear-off containers exist inside board (or create them)
+        let bar = document.getElementById('bar');
+        if (!bar) {
+            bar = document.createElement('div');
+            bar.id = 'bar';
+            bar.className = 'bar';
+            // place bar between left and right sections
+            const mid = document.createElement('div');
+            mid.className = 'bar-and-bearoffs';
+            mid.appendChild(bar);
+            // bear-off placeholders
+            const boW = document.createElement('div');
+            boW.id = 'bearOffWhite';
+            boW.className = 'bear-off white';
+            const boB = document.createElement('div');
+            boB.id = 'bearOffBlack';
+            boB.className = 'bear-off black';
+            mid.appendChild(boW);
+            mid.appendChild(boB);
+            // insert mid after leftSection
+            leftSection.insertAdjacentElement('afterend', mid);
+        }
+
+        // populate points — clear any existing points first to avoid duplicates on hot-reload
+        [topRow, bottomRow, topRow2, bottomRow2].forEach(r => { while (r.firstChild) r.removeChild(r.firstChild); });
 
         for (let i = 12; i < 18; i++) {
             const point = document.createElement('div');
@@ -103,14 +195,23 @@ class BackgammonUI {
     }
 
     attachEventListeners() {
+        // Invalidate stack-step cache when viewport changes
+        window.addEventListener('resize', () => this.invalidateStackStepCache(), { passive: true });
+        window.addEventListener('orientationchange', () => this.invalidateStackStepCache());
+
         document.querySelectorAll('.point').forEach(point => {
             point.addEventListener('click', e => this.handlePointClick(e));
         });
-        document.getElementById('bar').addEventListener('click', () => this.handleBarClick());
-        document.getElementById('bearOffWhite').addEventListener('click', () => this.handleBearOffClick('white'));
-        document.getElementById('bearOffBlack').addEventListener('click', () => this.handleBearOffClick('black'));
-        document.getElementById('rollButton').addEventListener('click', () => this.handleRollDice());
-        document.getElementById('undoButton').addEventListener('click', () => this.handleUndo());
+        const barEl = document.getElementById('bar');
+        if (barEl) barEl.addEventListener('click', () => this.handleBarClick());
+        const boW = document.getElementById('bearOffWhite');
+        if (boW) boW.addEventListener('click', () => this.handleBearOffClick('white'));
+        const boB = document.getElementById('bearOffBlack');
+        if (boB) boB.addEventListener('click', () => this.handleBearOffClick('black'));
+        const rollButton = document.getElementById('rollButton');
+        if (rollButton) rollButton.addEventListener('click', () => this.handleRollDice());
+        const undoButton = document.getElementById('undoButton');
+        if (undoButton) undoButton.addEventListener('click', () => this.handleUndo());
     }
 
     handlePointClick(e) {
@@ -479,6 +580,7 @@ class BackgammonUI {
         for (let i = 0; i < 24; i++) {
             const point = this.game.board[i];
             const pointEl = document.querySelector(`[data-point="${i}"]`);
+            if (!pointEl) continue; // defensive: skip missing DOM nodes
             pointEl.innerHTML = '';
 
             const movesHere = this.game.possibleMoves.filter(m => m.to === i);
@@ -491,8 +593,8 @@ class BackgammonUI {
                 checker.className = `checker ${point.color}`;
                 if (j === 5) checker.textContent = `+${point.count - 5}`;
                 const isTop = pointEl.classList.contains('top');
-                if (isTop) checker.style.top = `${j * 42}px`;
-                else checker.style.bottom = `${j * 42}px`;
+                // place using CSS-driven stack step
+                this.placeCheckerElement(checker, j /* stack index from 0 */, isTop);
                 pointEl.appendChild(checker);
             }
 
@@ -521,6 +623,7 @@ class BackgammonUI {
 
     renderBar() {
         const barEl = document.getElementById('bar');
+        if (!barEl) return;
         barEl.innerHTML = '';
         const whiteCount = this.game.bar.white;
         const blackCount = this.game.bar.black;
@@ -612,8 +715,8 @@ class BackgammonUI {
     updateButtons() {
         const rollButton = document.getElementById('rollButton');
         const undoButton = document.getElementById('undoButton');
-        rollButton.disabled = this.game.dice.rolled || this.game.currentPlayer === this.game.aiPlayer;
-        undoButton.disabled = !this.game.canUndo() || this.game.currentPlayer === this.game.aiPlayer;
+        if (rollButton) rollButton.disabled = this.game.dice.rolled || this.game.currentPlayer === this.game.aiPlayer;
+        if (undoButton) undoButton.disabled = !this.game.canUndo() || this.game.currentPlayer === this.game.aiPlayer;
     }
 
     showMessage(text, type = 'info') {
